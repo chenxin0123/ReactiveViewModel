@@ -17,7 +17,7 @@ static const NSTimeInterval RVMViewModelInactiveThrottleInterval = 1;
 
 @interface RVMViewModel ()
 
-// Improves the performance of KVO on the receiver.
+// Improves the performance of KVO on the receiver.`
 //
 // See the documentation for <NSKeyValueObserving> for more information.
 @property (atomic) void *observationInfo;
@@ -44,6 +44,7 @@ static const NSTimeInterval RVMViewModelInactiveThrottleInterval = 1;
 	[self didChangeValueForKey:@keypath(self.active)];
 }
 
+/// active变为YES时发出 next值为self
 - (RACSignal *)didBecomeActiveSignal {
 	if (_didBecomeActiveSignal == nil) {
 		@weakify(self);
@@ -62,6 +63,7 @@ static const NSTimeInterval RVMViewModelInactiveThrottleInterval = 1;
 	return _didBecomeActiveSignal;
 }
 
+/// inactive时发出 next值为self
 - (RACSignal *)didBecomeInactiveSignal {
 	if (_didBecomeInactiveSignal == nil) {
 		@weakify(self);
@@ -82,17 +84,21 @@ static const NSTimeInterval RVMViewModelInactiveThrottleInterval = 1;
 
 #pragma mark Activation
 
+/// 返回的信号被订阅会立即发出初始值
+/// active时订阅signal
+/// inactive时取消订阅
 - (RACSignal *)forwardSignalWhileActive:(RACSignal *)signal {
 	NSParameterAssert(signal != nil);
 
 	RACSignal *activeSignal = RACObserve(self, active);
-
 	return [[RACSignal
 		createSignal:^(id<RACSubscriber> subscriber) {
 			RACCompoundDisposable *disposable = [RACCompoundDisposable compoundDisposable];
 
 			__block RACDisposable *signalDisposable = nil;
 
+            // 订阅activeSignal
+            
 			RACDisposable *activeDisposable = [activeSignal subscribeNext:^(NSNumber *active) {
 				if (active.boolValue) {
 					signalDisposable = [signal subscribeNext:^(id value) {
@@ -119,6 +125,9 @@ static const NSTimeInterval RVMViewModelInactiveThrottleInterval = 1;
 		setNameWithFormat:@"%@ -forwardSignalWhileActive: %@", self, signal];
 }
 
+/// 1.signal replayLast
+/// 2.inactive时的 发出的next的值被throttle
+/// 返回的信号被订阅会立即发出初始值
 - (RACSignal *)throttleSignalWhileInactive:(RACSignal *)signal {
 	NSParameterAssert(signal != nil);
 
@@ -138,7 +147,7 @@ static const NSTimeInterval RVMViewModelInactiveThrottleInterval = 1;
 }
 
 #pragma mark NSKeyValueObserving
-
+/// 禁用active的自动KVO
 + (BOOL)automaticallyNotifiesObserversForKey:(NSString *)key {
 	// We'll generate notifications for this property manually.
 	if ([key isEqual:@keypath(RVMViewModel.new, active)]) {
